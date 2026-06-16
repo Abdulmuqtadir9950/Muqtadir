@@ -30,21 +30,17 @@ pipeline {
             archiveArtifacts artifacts: 'vcenter_vm_list.csv', fingerprint: true
 
             emailext(
-                to: 'abdul.muqtadir@ctrls.in',
-                subject: "VM Inventory Report - ${JOB_NAME} #${BUILD_NUMBER}",
+                to: 'vikhar.sk@ctrls.in',
+                subject: "VM list for Gamut",
                 body: """
-Hi Team,
+Hi Vikhar,
 
-VM Inventory job completed successfully.
+Please find the attached VM list of Gamut customer.
 
-Job: ${JOB_NAME}
-Build: ${BUILD_NUMBER}
-
-Please find attached VM report.
+This is for testing purpose.
 
 Regards,
-Jenkins
-""",
+Abdul Muqtadir
                 attachmentsPattern: 'vcenter_vm_list.csv'
             )
         }
