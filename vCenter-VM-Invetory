@@ -7,6 +7,12 @@ pipeline {
 
     stages {
 
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('VM Inventory') {
             steps {
                 withCredentials([usernamePassword(
@@ -16,7 +22,9 @@ pipeline {
                 )]) {
 
                     sh '''
-                    pwsh -NoProfile -ExecutionPolicy Bypass -File vCenter-VM-Inventory.ps1
+                    ls -l $WORKSPACE
+
+                    pwsh -NoProfile -ExecutionPolicy Bypass -File "$WORKSPACE/vCenter-VM-Inventory.ps1"
                     '''
                 }
             }
