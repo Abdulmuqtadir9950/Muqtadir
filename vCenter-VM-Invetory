@@ -7,7 +7,7 @@ pipeline {
 
     stages {
 
-        stage('VM Inventory from vCenter') {
+        stage('VM Inventory') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'vcenter-creds',
@@ -16,35 +16,7 @@ pipeline {
                 )]) {
 
                     sh '''
-                    pwsh -NoProfile -ExecutionPolicy Bypass -Command "
-                    
-                    $ErrorActionPreference = 'Stop'
-
-                    Write-Host '=== VM Inventory Start ==='
-
-                    Import-Module VMware.VimAutomation.Core -ErrorAction Stop
-
-                    # FIX: correct syntax (NO -Confirm:)
-                    Set-PowerCLIConfiguration -Scope User -InvalidCertificateAction Ignore -Confirm:$false | Out-Null
-                    Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $false -Confirm:$false | Out-Null
-
-                    Write-Host 'Connecting to vCenter...'
-
-                    $securePass = ConvertTo-SecureString $env:VC_PASS -AsPlainText -Force
-                    $cred = New-Object System.Management.Automation.PSCredential($env:VC_USER, $securePass)
-
-                    Connect-VIServer -Server '$VC_SERVER' -Credential $cred | Out-Null
-
-                    Write-Host 'Fetching VM list...'
-
-                    Get-VM |
-                        Select-Object Name, PowerState, NumCpu, MemoryGB |
-                        Export-Csv -Path $env:WORKSPACE/vcenter_vm_list.csv -NoTypeInformation
-
-                    Disconnect-VIServer -Server * -Confirm:$false | Out-Null
-
-                    Write-Host 'DONE - VM report generated'
-                    "
+                    pwsh -NoProfile -ExecutionPolicy Bypass -File vCenter-VM-Inventory.ps1
                     '''
                 }
             }
@@ -52,35 +24,14 @@ pipeline {
     }
 
     post {
-
         success {
             archiveArtifacts artifacts: 'vcenter_vm_list.csv'
 
             emailext (
                 to: 'abdul.muqtadir@ctrls.in',
-                subject: "VM Inventory Report - ${JOB_NAME} #${BUILD_NUMBER}",
-                body: """
-Hi Team,
-
-VM Inventory job completed successfully.
-
-Job: ${JOB_NAME}
-Build: ${BUILD_NUMBER}
-
-Attached is the VM report.
-
-Regards,
-Jenkins
-""",
+                subject: "VM Report - ${JOB_NAME} #${BUILD_NUMBER}",
+                body: "VM inventory generated successfully.",
                 attachmentsPattern: 'vcenter_vm_list.csv'
-            )
-        }
-
-        failure {
-            emailext (
-                to: 'abdul.muqtadir@ctrls.in',
-                subject: "FAILED VM Inventory - ${JOB_NAME}",
-                body: "Check Jenkins logs for failure details."
             )
         }
     }
