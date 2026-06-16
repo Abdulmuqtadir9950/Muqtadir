@@ -6,7 +6,8 @@ pipeline {
     }
 
     stages {
-        stage('VM Inventory') {
+
+        stage('VM Inventory from vCenter') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'vcenter-creds',
@@ -15,7 +16,35 @@ pipeline {
                 )]) {
 
                     sh '''
-                    pwsh -NoProfile -ExecutionPolicy Bypass -File vCenter-VM-Invetory.ps1
+                    pwsh -NoProfile -ExecutionPolicy Bypass -Command "
+                    
+                    \$ErrorActionPreference = 'Stop'
+
+                    Write-Host '=== VM Inventory Start ==='
+
+                    Import-Module VMware.VimAutomation.Core -ErrorAction Stop
+
+                    # Disable prompts (IMPORTANT FIX)
+                    Set-PowerCLIConfiguration -Scope User -InvalidCertificateAction Ignore -Confirm:\$false | Out-Null
+                    Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP \$false -Confirm:\$false | Out-Null
+
+                    Write-Host 'Connecting to vCenter...'
+
+                    \$securePass = ConvertTo-SecureString \$env:VC_PASS -AsPlainText -Force
+                    \$cred = New-Object System.Management.Automation.PSCredential(\$env:VC_USER, \$securePass)
+
+                    Connect-VIServer -Server '$VC_SERVER' -Credential \$cred | Out-Null
+
+                    Write-Host 'Fetching VM list...'
+
+                    Get-VM |
+                        Select-Object Name, PowerState, NumCpu, MemoryGB |
+                        Export-Csv -Path \$env:WORKSPACE/vcenter_vm_list.csv -NoTypeInformation
+
+                    Disconnect-VIServer -Server * -Confirm:\$false | Out-Null
+
+                    Write-Host 'DONE - VM report generated'
+                    "
                     '''
                 }
             }
@@ -23,8 +52,36 @@ pipeline {
     }
 
     post {
-        always {
-            archiveArtifacts artifacts: 'vcenter_vm_list.csv', allowEmptyArchive: true
+
+        success {
+            archiveArtifacts artifacts: 'vcenter_vm_list.csv', allowEmptyArchive: false
+
+            emailext (
+                to: 'abdul.muqtadir@ctrls.in',
+                subject: "VM Inventory Report - ${JOB_NAME} #${BUILD_NUMBER}",
+                body: """
+Hi Team,
+
+VM Inventory job completed successfully.
+
+Job Name: ${JOB_NAME}
+Build Number: ${BUILD_NUMBER}
+
+Please find attached VM list report.
+
+Regards,
+Jenkins
+""",
+                attachmentsPattern: 'vcenter_vm_list.csv'
+            )
+        }
+
+        failure {
+            emailext (
+                to: 'abdul.muqtadir@ctrls.in',
+                subject: "FAILED: VM Inventory Job - ${JOB_NAME} #${BUILD_NUMBER}",
+                body: "VM Inventory job failed. Please check Jenkins logs."
+            )
         }
     }
 }
