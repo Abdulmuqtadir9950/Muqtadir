@@ -7,24 +7,18 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        stage('VM Inventory from vCenter') {
             steps {
-                checkout scm
-            }
-        }
-
-        stage('VM Inventory') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'vcenter-creds',
-                    usernameVariable: 'VC_USER',
-                    passwordVariable: 'VC_PASS'
-                )]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'vcenter-creds',
+                        usernameVariable: 'VC_USER',
+                        passwordVariable: 'VC_PASS'
+                    )
+                ]) {
 
                     sh '''
-                    ls -l $WORKSPACE
-
-                    pwsh -NoProfile -ExecutionPolicy Bypass -File "$WORKSPACE/vCenter-VM-Inventory.ps1"
+                    pwsh -NoProfile -ExecutionPolicy Bypass -File vCenter-VM-Inventory.ps1
                     '''
                 }
             }
@@ -33,13 +27,33 @@ pipeline {
 
     post {
         success {
-            archiveArtifacts artifacts: 'vcenter_vm_list.csv'
+            archiveArtifacts artifacts: 'vcenter_vm_list.csv', fingerprint: true
 
-            emailext (
+            emailext(
                 to: 'abdul.muqtadir@ctrls.in',
-                subject: "VM Report - ${JOB_NAME} #${BUILD_NUMBER}",
-                body: "VM inventory generated successfully.",
+                subject: "VM Inventory Report - ${JOB_NAME} #${BUILD_NUMBER}",
+                body: """
+Hi Team,
+
+VM Inventory job completed successfully.
+
+Job: ${JOB_NAME}
+Build: ${BUILD_NUMBER}
+
+Please find attached VM report.
+
+Regards,
+Jenkins
+""",
                 attachmentsPattern: 'vcenter_vm_list.csv'
+            )
+        }
+
+        failure {
+            emailext(
+                to: 'abdul.muqtadir@ctrls.in',
+                subject: "FAILED VM Inventory - ${JOB_NAME}",
+                body: "Job failed. Please check Jenkins logs."
             )
         }
     }
