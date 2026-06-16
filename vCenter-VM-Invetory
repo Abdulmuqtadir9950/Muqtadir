@@ -1,15 +1,14 @@
 pipeline {
-    agent { label 'rhel-agent' }
+    agent any
 
     environment {
-        VC_SERVER = '10.10.121.25'
+        VC_SERVER = "10.10.121.25"
     }
 
     stages {
 
         stage('VM List from vCenter') {
             steps {
-
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'vcenter-creds',
@@ -19,87 +18,63 @@ pipeline {
                 ]) {
 
                     sh '''
-pwsh -NoProfile -Command "
-\$ErrorActionPreference = 'Stop'
+                    pwsh -NoProfile -Command "
+                    
+                    \$ErrorActionPreference = 'Stop'
 
-Write-Host '=== Starting PowerCLI Script ==='
+                    Write-Host '=== Starting PowerCLI Script ==='
 
-Import-Module VMware.VimAutomation.Core -Force
+                    Import-Module VMware.VimAutomation.Core -Force
 
-Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:\$false | Out-Null
-Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP \$false -Confirm:\$false | Out-Null
+                    # Fix PowerCLI prompts (IMPORTANT)
+                    Set-PowerCLIConfiguration -Scope User -InvalidCertificateAction Ignore -Confirm:$false | Out-Null
+                    Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $false -Confirm:$false | Out-Null
 
-Write-Host 'Connecting to vCenter...'
+                    Write-Host 'Connecting to vCenter: $env:VC_SERVER'
 
-\$securePass = ConvertTo-SecureString \$env:VC_PASS -AsPlainText -Force
-\$cred = New-Object System.Management.Automation.PSCredential(\$env:VC_USER, \$securePass)
+                    \$securePass = ConvertTo-SecureString \$env:VC_PASS -AsPlainText -Force
+                    \$cred = New-Object System.Management.Automation.PSCredential (\$env:VC_USER, \$securePass)
 
-Connect-VIServer -Server \$env:VC_SERVER -Credential \$cred
+                    Connect-VIServer -Server \$env:VC_SERVER -Credential \$cred
 
-Write-Host 'Fetching VM inventory...'
+                    Write-Host 'Fetching VM list...'
 
-Get-VM |
-Select-Object Name, PowerState, NumCpu, MemoryGB |
-Export-Csv '$WORKSPACE/vcenter_vm_list.csv' -NoTypeInformation
+                    \$vms = Get-VM | Select-Object Name, PowerState, NumCpu, MemoryGB
 
-Write-Host 'Disconnecting from vCenter...'
-Disconnect-VIServer * -Confirm:\$false
+                    \$vms | Export-Csv -Path \"$env:WORKSPACE/vcenter_vm_list.csv\" -NoTypeInformation
 
-Write-Host 'CSV file generated successfully.'
-"
-'''
+                    Write-Host 'Disconnecting...'
+                    Disconnect-VIServer * -Confirm:$false
+
+                    Write-Host 'DONE - CSV generated'
+                    "
+                    '''
                 }
             }
         }
     }
 
     post {
+        always {
+            archiveArtifacts artifacts: 'vcenter_vm_list.csv', allowEmptyArchive: true
 
-        success {
-
-            archiveArtifacts artifacts: 'vcenter_vm_list.csv'
-
-            emailext(
+            emailext (
                 to: 'abdul.muqtadir@ctrls.in',
-                subject: "vCenter VM Inventory Report - ${JOB_NAME} #${BUILD_NUMBER}",
+                subject: "VM Inventory Report - ${JOB_NAME} - Build #${BUILD_NUMBER}",
                 body: """
 Hi Team,
 
-The vCenter VM inventory job completed successfully.
+VM inventory job completed.
 
-Job Name: ${JOB_NAME}
-Build Number: ${BUILD_NUMBER}
+Job: ${JOB_NAME}
+Build: ${BUILD_NUMBER}
 
-Please find the attached VM inventory report.
+Please find attached VM list.
 
 Regards,
 Jenkins
 """,
                 attachmentsPattern: 'vcenter_vm_list.csv'
-            )
-        }
-
-        failure {
-
-            emailext(
-                to: 'abdul.muqtadir@ctrls.in',
-                subject: "FAILED - ${JOB_NAME} #${BUILD_NUMBER}",
-                body: """
-Hi Team,
-
-The vCenter VM inventory job has failed.
-
-Job Name: ${JOB_NAME}
-Build Number: ${BUILD_NUMBER}
-
-Please check the Jenkins console output for details.
-
-Build URL:
-${BUILD_URL}
-
-Regards,
-Jenkins
-"""
             )
         }
     }
