@@ -6,7 +6,7 @@ pipeline {
     }
 
     stages {
-        stage('VM List from vCenter') {
+        stage('VM Inventory') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'vcenter-creds',
@@ -15,7 +15,7 @@ pipeline {
                 )]) {
 
                     sh '''
-                    pwsh -NoProfile -File vCenter-VM-Invetory.ps1
+                    pwsh -NoProfile -ExecutionPolicy Bypass -File vCenter-VM-Invetory.ps1
                     '''
                 }
             }
@@ -25,13 +25,6 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'vcenter_vm_list.csv', allowEmptyArchive: true
-
-            emailext(
-                to: 'abdul.muqtadir@ctrls.in',
-                subject: "VM Report - ${JOB_NAME} #${BUILD_NUMBER}",
-                body: "VM inventory completed. Please find attached report.",
-                attachmentsPattern: 'vcenter_vm_list.csv'
-            )
         }
     }
 }
