@@ -1,0 +1,80 @@
+pipeline {
+    agent any
+
+    environment {
+        VC_SERVER = "10.10.121.25"
+    }
+
+    stages {
+
+        stage('VM List from vCenter') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'vcenter-creds',
+                        usernameVariable: 'VC_USER',
+                        passwordVariable: 'VC_PASS'
+                    )
+                ]) {
+
+                    sh '''
+                    pwsh -NoProfile -Command "
+                    \$ErrorActionPreference = 'Stop'
+
+                    Write-Host '=== Starting PowerCLI Script ==='
+
+                    Import-Module VMware.VimAutomation.Core -Force
+
+                    Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:\$false | Out-Null
+                    Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP \$false -Confirm:\$false | Out-Null
+
+                    Write-Host 'Connecting to vCenter: $VC_SERVER'
+
+                    \$securePass = ConvertTo-SecureString \$env:VC_PASS -AsPlainText -Force
+                    \$cred = New-Object System.Management.Automation.PSCredential(\$env:VC_USER, \$securePass)
+
+                    Connect-VIServer -Server '$VC_SERVER' -Credential \$cred
+
+                    Write-Host 'Fetching VM list...'
+
+                    \$vms = Get-VM
+
+                    \$vms | Select Name, PowerState, NumCpu, MemoryGB |
+                        Export-Csv '$WORKSPACE/vcenter_vm_list.csv' -NoTypeInformation
+
+                    Write-Host 'Disconnecting from vCenter...'
+                    Disconnect-VIServer * -Confirm:\$false
+
+                    Write-Host 'DONE - CSV generated'
+                    "
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'vcenter_vm_list.csv', allowEmptyArchive: false
+
+            emailext(
+                to: 'abdul.muqtadir@ctrls.in',
+                subject: "VM List Report - ${JOB_NAME} - Build #${BUILD_NUMBER}",
+                body: """
+Hi Team,
+
+VM inventory job has completed successfully.
+
+Job Name: ${JOB_NAME}
+Build Number: ${BUILD_NUMBER}
+
+Please find the attached VM inventory report.
+
+Regards,
+Jenkins
+""",
+                attachmentsPattern: 'vcenter_vm_list.csv'
+            )
+        }
+    }
+}
