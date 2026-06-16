@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 Import-Module VMware.VimAutomation.Core
 
+# PowerCLI config (NO prompts)
 Set-PowerCLIConfiguration -Scope User -InvalidCertificateAction Ignore -Confirm:$false | Out-Null
 Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $false -Confirm:$false | Out-Null
 
@@ -12,10 +13,12 @@ $cred = New-Object System.Management.Automation.PSCredential($env:VC_USER, $secu
 
 Connect-VIServer -Server $env:VC_SERVER -Credential $cred
 
-Write-Host "Fetching VMs..."
+Write-Host "Fetching VM list..."
 
 Get-VM |
-Select Name, PowerState, NumCpu, MemoryGB |
+Select-Object Name, PowerState, NumCpu, MemoryGB |
 Export-Csv "$env:WORKSPACE/vcenter_vm_list.csv" -NoTypeInformation
 
 Disconnect-VIServer * -Confirm:$false
+
+Write-Host "DONE - VM report generated"
