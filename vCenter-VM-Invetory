@@ -6,16 +6,13 @@ pipeline {
     }
 
     stages {
-
         stage('VM List from vCenter') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'vcenter-creds',
-                        usernameVariable: 'VC_USER',
-                        passwordVariable: 'VC_PASS'
-                    )
-                ]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'vcenter-creds',
+                    usernameVariable: 'VC_USER',
+                    passwordVariable: 'VC_PASS'
+                )]) {
 
                     sh '''
                     pwsh -NoProfile -File vCenter-VM-Invetory.ps1
@@ -29,10 +26,10 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'vcenter_vm_list.csv', allowEmptyArchive: true
 
-            emailext (
+            emailext(
                 to: 'abdul.muqtadir@ctrls.in',
-                subject: "VM Inventory - ${BUILD_NUMBER}",
-                body: "VM inventory job completed",
+                subject: "VM Report - ${JOB_NAME} #${BUILD_NUMBER}",
+                body: "VM inventory completed. Please find attached report.",
                 attachmentsPattern: 'vcenter_vm_list.csv'
             )
         }
