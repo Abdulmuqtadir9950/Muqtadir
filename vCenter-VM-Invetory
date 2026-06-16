@@ -41,6 +41,7 @@ This is for testing purpose.
 
 Regards,
 Abdul Muqtadir
+""",
                 attachmentsPattern: 'vcenter_vm_list.csv'
             )
         }
