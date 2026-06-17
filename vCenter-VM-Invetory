@@ -30,10 +30,10 @@ pipeline {
             archiveArtifacts artifacts: 'vcenter_vm_list.csv', fingerprint: true
 
             emailext(
-                to: 'vikhar.sk@ctrls.in',
+                to: 'tauqeer.mohammed@ctrls.in',
                 subject: "VM list for Gamut",
                 body: """
-Hi Vikhar,
+Hi Tauqeer,
 
 Please find the attached VM list of Gamut customer.
 
